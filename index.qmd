@@ -5,10 +5,10 @@ format:
   dashboard:
     theme: [flatly, custom.scss]
     scrolling: true
-    logo: ../boletim/assets/logofacape.jpg
+    logo: logofacape.jpg
     nav-buttons:
       - icon: file-pdf
-        href: ../boletim/abril.pdf
+        href: abril.pdf
 execute:
   echo: false
   warning: false

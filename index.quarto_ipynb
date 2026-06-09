@@ -21,7 +21,7 @@
         "  message: false\n",
         "---"
       ],
-      "id": "8d8f8dd9"
+      "id": "fd7048d5"
     },
     {
       "cell_type": "code",
@@ -36,9 +36,12 @@
         "import pandas as pd\n",
         "import plotly.graph_objects as go\n",
         "from plotly.subplots import make_subplots\n",
+        "from itables import show, init_notebook_mode\n",
+        "init_notebook_mode(all_interactive=False, connected=True)\n",
         "\n",
         "ANO, MES = 2026, 4\n",
-        "R = resumo_boletim(ANO, MES, \"dados/abril\")\n",
+        "PASTA = f\"dados/{MES_NOME[MES].lower()}\"   # ex.: dados/maio (deriva do número do mês)\n",
+        "R = resumo_boletim(ANO, MES, PASTA)\n",
         "vale, pnz, jua = R[\"vale\"], R[\"cidades\"][\"Petrolina\"], R[\"cidades\"][\"Juazeiro\"]\n",
         "\n",
         "CORES = {\"Vale\": \"#0b3d91\", \"Petrolina\": \"#1f77b4\", \"Juazeiro\": \"#2ca02c\"}\n",
@@ -51,10 +54,16 @@
         "    return f\"{x:.2f}\".replace(\".\", \",\") + \"%\"\n",
         "def style(fig, leg=True, **kw):\n",
         "    fig.update_layout(margin=dict(l=8, r=8, t=14, b=8), template=\"plotly_white\",\n",
-        "                      showlegend=leg, font=dict(size=11),\n",
-        "                      legend=dict(orientation=\"v\", yanchor=\"top\", y=0.99, x=0.01, xanchor=\"left\",\n",
-        "                                  font=dict(size=10), bgcolor=\"rgba(255,255,255,0.65)\",\n",
-        "                                  bordercolor=\"rgba(0,0,0,0.12)\", borderwidth=1), **kw)\n",
+        "                      showlegend=False, font=dict(size=11), **kw)\n",
+        "    return fig\n",
+        "\n",
+        "def leg_manual(fig, items, x=0.015, y=0.98, dy=0.085):\n",
+        "    # legenda manual: cada nome é uma anotação independente (não trunca nunca)\n",
+        "    for i, (name, color) in enumerate(items):\n",
+        "        fig.add_annotation(xref=\"paper\", yref=\"paper\", x=x, y=y - i * dy,\n",
+        "                           xanchor=\"left\", yanchor=\"top\", showarrow=False,\n",
+        "                           text=f\"<b>—</b> {name}\", font=dict(color=color, size=11),\n",
+        "                           align=\"left\")\n",
         "    return fig\n",
         "\n",
         "# ---------- dados ----------\n",
@@ -69,6 +78,17 @@
         "icb[\"data\"] = pd.to_datetime(dict(year=icb.ano, month=icb.mes, day=1))\n",
         "icbp = icb.pivot_table(index=\"data\", columns=\"cidade\", values=\"icb\").sort_index()\n",
         "icb_vale_atual = icbp[\"Vale\"].iloc[-1]\n",
+        "\n",
+        "# ---------- tabela histórica (exportável) ----------\n",
+        "tab_hist = pd.DataFrame({\n",
+        "    \"Mês\": [f\"{MES_NOME[d.month]}/{d.year}\" for d in custo.index],\n",
+        "    \"Petrolina (R$)\": custo[\"Petrolina\"].round(2).values,\n",
+        "    \"Juazeiro (R$)\": custo[\"Juazeiro\"].round(2).values,\n",
+        "    \"Vale (R$)\": custo[\"Vale\"].round(2).values,\n",
+        "    \"Infl. mês Vale (%)\": infl_mes[\"Vale\"].round(2).values,\n",
+        "    \"Acum. 12m Vale (%)\": acum12[\"Vale\"].round(2).values,\n",
+        "    \"ICB Vale\": icbp[\"Vale\"].reindex(custo.index).round(1).values,\n",
+        "}).iloc[::-1].reset_index(drop=True)  # mais recente no topo\n",
         "\n",
         "valep = df[df.cidade == \"Vale\"].pivot_table(index=\"data\", columns=\"produto\", values=\"custo\").sort_index()\n",
         "cur, prev, y12 = valep.iloc[-1], valep.iloc[-2], valep.iloc[-13]\n",
@@ -87,7 +107,7 @@
         "m, ma = f\"{MES_NOME[MES]}/{ANO}\", f\"{MES_NOME[MES]}/{ANO-1}\"\n",
         "comp = pd.DataFrame({\n",
         "    m: [brl(pnz[\"cesta\"]), brl(jua[\"cesta\"]), brl(vale[\"cesta\"])],\n",
-        "    ma: [brl(pnz[\"cesta_ano_anterior\"]), brl(jua[\"cesta_ano_anterior\"]), \"—\"],\n",
+        "    ma: [brl(pnz[\"cesta_ano_anterior\"]), brl(jua[\"cesta_ano_anterior\"]), brl(vale[\"cesta_ano_anterior\"])],\n",
         "    \"Inflação mês\": [pc(pnz[\"inflacao_mes\"]), pc(jua[\"inflacao_mes\"]), pc(vale[\"inflacao_mes\"])],\n",
         "    \"Acum. 12m\": [pc(pnz[\"acum12\"]), pc(jua[\"acum12\"]), pc(vale[\"acum12\"])],\n",
         "}, index=[\"Petrolina/PE\", \"Juazeiro/BA\", \"Vale (Média)\"])\n",
@@ -99,7 +119,9 @@
         "        fig.add_trace(go.Scatter(x=serie.index, y=serie[cid], name=cid,\n",
         "                                 line=dict(color=CORES[cid], width=2.6 if cid == \"Vale\" else 1.2)))\n",
         "    fig.add_vrect(x0=\"2020-03-01\", x1=\"2020-07-31\", fillcolor=\"grey\", opacity=0.15, line_width=0)\n",
-        "    return style(fig, yaxis_title=ytitle)\n",
+        "    style(fig, yaxis_title=ytitle)\n",
+        "    leg_manual(fig, [(c, CORES[c]) for c in [\"Vale\", \"Petrolina\", \"Juazeiro\"]])\n",
+        "    return fig\n",
         "\n",
         "fig_icb = linhas(icbp, \"Índice\")\n",
         "fig_custo = linhas(custo, \"R$\")\n",
@@ -112,6 +134,7 @@
         "fig_infl.update_yaxes(title_text=\"Mês (%)\", secondary_y=False)\n",
         "fig_infl.update_yaxes(title_text=\"12 meses (%)\", secondary_y=True)\n",
         "style(fig_infl)\n",
+        "leg_manual(fig_infl, [(\"Inflação no mês\", \"#6baed6\"), (\"Acumulado 12 meses\", \"#0b3d91\")])\n",
         "\n",
         "def barh(d, col, ytitle, divergente=True):\n",
         "    cor = [\"#2ca02c\" if v < 0 else \"#d62728\" for v in d[col]] if divergente else \"#0b3d91\"\n",
@@ -126,7 +149,8 @@
         "fig_disp = go.Figure()\n",
         "for cid in [\"Petrolina\", \"Juazeiro\"]:\n",
         "    fig_disp.add_trace(go.Bar(name=cid, x=amp.index, y=amp[cid], marker_color=CORES[cid]))\n",
-        "style(fig_disp, barmode=\"group\", yaxis_title=\"Amplitude (%)\")"
+        "style(fig_disp, barmode=\"group\", yaxis_title=\"Amplitude (%)\")\n",
+        "leg_manual(fig_disp, [(\"Petrolina\", CORES[\"Petrolina\"]), (\"Juazeiro\", CORES[\"Juazeiro\"])])"
       ],
       "id": "setup",
       "execution_count": null,
@@ -140,7 +164,7 @@
         "\n",
         "## Row {height=\"135px\"}"
       ],
-      "id": "79816b58"
+      "id": "d0b5df39"
     },
     {
       "cell_type": "code",
@@ -151,7 +175,7 @@
       "source": [
         "dict(icon=\"cart4\", color=\"primary\", value=brl(vale[\"cesta\"]))"
       ],
-      "id": "59be2f95",
+      "id": "b61f6d69",
       "execution_count": null,
       "outputs": []
     },
@@ -165,7 +189,7 @@
         "dict(icon=\"arrow-up-right\" if vale[\"inflacao_mes\"] >= 0 else \"arrow-down-right\",\n",
         "     color=\"danger\" if vale[\"inflacao_mes\"] >= 0 else \"success\", value=pc(vale[\"inflacao_mes\"]))"
       ],
-      "id": "763642dd",
+      "id": "44083183",
       "execution_count": null,
       "outputs": []
     },
@@ -178,7 +202,7 @@
       "source": [
         "dict(icon=\"calendar3\", color=\"warning\", value=pc(vale[\"acum12\"]))"
       ],
-      "id": "b5c49906",
+      "id": "5f24109d",
       "execution_count": null,
       "outputs": []
     },
@@ -191,7 +215,7 @@
       "source": [
         "dict(icon=\"graph-up\", color=\"info\", value=f\"{icb_vale_atual:.1f}\".replace(\".\", \",\"))"
       ],
-      "id": "9d008f34",
+      "id": "c8ca3248",
       "execution_count": null,
       "outputs": []
     },
@@ -203,7 +227,7 @@
         "\n",
         "### Column {width=\"42%\"}"
       ],
-      "id": "1069b402"
+      "id": "0e53bbe8"
     },
     {
       "cell_type": "code",
@@ -213,7 +237,7 @@
       "source": [
         "comp"
       ],
-      "id": "4882a556",
+      "id": "c44b250e",
       "execution_count": null,
       "outputs": []
     },
@@ -223,7 +247,7 @@
       "source": [
         "### Column {width=\"58%\"}"
       ],
-      "id": "545a8eb3"
+      "id": "0a184016"
     },
     {
       "cell_type": "code",
@@ -233,7 +257,7 @@
       "source": [
         "fig_altas"
       ],
-      "id": "7d493a4d",
+      "id": "20106dd6",
       "execution_count": null,
       "outputs": []
     },
@@ -241,11 +265,9 @@
       "cell_type": "markdown",
       "metadata": {},
       "source": [
-        "## Row {height=\"430px\"}\n",
-        "\n",
-        "### Column"
+        "## Row {height=\"430px\"}"
       ],
-      "id": "e856bd73"
+      "id": "81ebe02c"
     },
     {
       "cell_type": "code",
@@ -255,27 +277,7 @@
       "source": [
         "fig_icb"
       ],
-      "id": "fe7df60b",
-      "execution_count": null,
-      "outputs": []
-    },
-    {
-      "cell_type": "markdown",
-      "metadata": {},
-      "source": [
-        "### Column"
-      ],
-      "id": "7e54a135"
-    },
-    {
-      "cell_type": "code",
-      "metadata": {
-        "title": "Custo da cesta (R$) ao longo do tempo"
-      },
-      "source": [
-        "fig_custo"
-      ],
-      "id": "a457f688",
+      "id": "56f67273",
       "execution_count": null,
       "outputs": []
     },
@@ -287,7 +289,7 @@
         "\n",
         "## Row {height=\"450px\"}"
       ],
-      "id": "1b3d260d"
+      "id": "bf727791"
     },
     {
       "cell_type": "code",
@@ -297,7 +299,7 @@
       "source": [
         "fig_infl"
       ],
-      "id": "393f9b2e",
+      "id": "cfabd820",
       "execution_count": null,
       "outputs": []
     },
@@ -307,17 +309,44 @@
       "source": [
         "## Row {height=\"450px\"}"
       ],
-      "id": "7b2ab544"
+      "id": "c0b49791"
     },
     {
       "cell_type": "code",
       "metadata": {
-        "title": "Custo da cesta (R$) — Vale, Petrolina e Juazeiro (ago/2013 → abr/2026)"
+        "title": "Custo da cesta (R$) — Vale, Petrolina e Juazeiro (série mensal desde ago/2013)"
       },
       "source": [
         "fig_custo"
       ],
-      "id": "fda436be",
+      "id": "1b1612d2",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Row {height=\"500px\"}"
+      ],
+      "id": "6aa86694"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Tabela da série histórica — valores mensais (exportável: copiar / CSV / Excel)"
+      },
+      "source": [
+        "show(tab_hist,\n",
+        "     buttons=[\"copyHtml5\", \"csvHtml5\", \"excelHtml5\"],\n",
+        "     classes=\"display compact\",\n",
+        "     style=\"width:100%\",\n",
+        "     paging=True, lengthMenu=[10, 25, 50, 100], maxBytes=0,\n",
+        "     order=[],\n",
+        "     columnDefs=[{\"targets\": 0, \"className\": \"dt-left\"},\n",
+        "                 {\"targets\": [1, 2, 3, 4, 5, 6], \"className\": \"dt-right\"}])"
+      ],
+      "id": "5e8b5a67",
       "execution_count": null,
       "outputs": []
     },
@@ -331,7 +360,7 @@
         "\n",
         "### Column"
       ],
-      "id": "75b250ed"
+      "id": "d2ea0211"
     },
     {
       "cell_type": "code",
@@ -341,7 +370,7 @@
       "source": [
         "fig_peso"
       ],
-      "id": "69deccbe",
+      "id": "5138826a",
       "execution_count": null,
       "outputs": []
     },
@@ -351,7 +380,7 @@
       "source": [
         "### Column"
       ],
-      "id": "eb37d88c"
+      "id": "02738b45"
     },
     {
       "cell_type": "code",
@@ -361,7 +390,7 @@
       "source": [
         "fig_var12"
       ],
-      "id": "6ea6eae4",
+      "id": "36a5a3ce",
       "execution_count": null,
       "outputs": []
     },
@@ -371,7 +400,7 @@
       "source": [
         "## Row {height=\"430px\"}"
       ],
-      "id": "4064ac2c"
+      "id": "486646fe"
     },
     {
       "cell_type": "code",
@@ -381,7 +410,7 @@
       "source": [
         "fig_disp"
       ],
-      "id": "505209db",
+      "id": "0edd57e5",
       "execution_count": null,
       "outputs": []
     }
