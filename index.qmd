@@ -1,0 +1,250 @@
+---
+title: "Observatório do Custo da Cesta Básica"
+author: "Colegiado de Economia da FACAPE"
+format:
+  dashboard:
+    theme: [flatly, custom.scss]
+    scrolling: true
+    logo: ../boletim/assets/logofacape.jpg
+    nav-buttons:
+      - icon: file-pdf
+        href: ../boletim/abril.pdf
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{python}
+#| label: setup
+#| output: false
+import sys
+from pathlib import Path
+sys.path.append(str(Path("../src").resolve()))
+from metricas import resumo_boletim, canonico, ROOT, MES_NOME
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from itables import show, init_notebook_mode
+init_notebook_mode(all_interactive=False, connected=True)
+
+ANO, MES = 2026, 4
+PASTA = f"dados/{MES_NOME[MES].lower()}"   # ex.: dados/maio (deriva do número do mês)
+R = resumo_boletim(ANO, MES, PASTA)
+vale, pnz, jua = R["vale"], R["cidades"]["Petrolina"], R["cidades"]["Juazeiro"]
+
+CORES = {"Vale": "#0b3d91", "Petrolina": "#1f77b4", "Juazeiro": "#2ca02c"}
+PRODS = ["Carne", "Leite Integral", "Feijão", "Arroz", "Farinha", "Tomate",
+         "Pão Francês", "Café em Pó", "Banana", "Açúcar", "Óleo de Soja", "Margarina"]
+
+def brl(x):
+    return ("R$ " + f"{x:,.2f}").replace(",", "X").replace(".", ",").replace("X", ".")
+def pc(x):
+    return f"{x:.2f}".replace(".", ",") + "%"
+def style(fig, leg=True, **kw):
+    fig.update_layout(margin=dict(l=8, r=8, t=14, b=8), template="plotly_white",
+                      showlegend=False, font=dict(size=11), **kw)
+    return fig
+
+def leg_manual(fig, items, x=0.015, y=0.98, dy=0.085):
+    # legenda manual: cada nome é uma anotação independente (não trunca nunca)
+    for i, (name, color) in enumerate(items):
+        fig.add_annotation(xref="paper", yref="paper", x=x, y=y - i * dy,
+                           xanchor="left", yanchor="top", showarrow=False,
+                           text=f"<b>—</b> {name}", font=dict(color=color, size=11),
+                           align="left")
+    return fig
+
+# ---------- dados ----------
+df = pd.read_csv(ROOT / "base" / "cesta_serie_longa.csv", sep=";")
+df["data"] = pd.to_datetime(dict(year=df.ano, month=df.mes, day=1))
+tot = df[df.produto == "Total"]
+custo = tot.pivot_table(index="data", columns="cidade", values="custo").sort_index()
+infl_mes = custo.pct_change() * 100
+acum12 = (custo / custo.shift(12) - 1) * 100
+
+icb = pd.read_csv(ROOT / "base" / "icb.csv", sep=";")
+icb["data"] = pd.to_datetime(dict(year=icb.ano, month=icb.mes, day=1))
+icbp = icb.pivot_table(index="data", columns="cidade", values="icb").sort_index()
+icb_vale_atual = icbp["Vale"].iloc[-1]
+
+# ---------- tabela histórica (exportável) ----------
+tab_hist = pd.DataFrame({
+    "Mês": [f"{MES_NOME[d.month]}/{d.year}" for d in custo.index],
+    "Petrolina (R$)": custo["Petrolina"].round(2).values,
+    "Juazeiro (R$)": custo["Juazeiro"].round(2).values,
+    "Vale (R$)": custo["Vale"].round(2).values,
+    "Infl. mês Vale (%)": infl_mes["Vale"].round(2).values,
+    "Acum. 12m Vale (%)": acum12["Vale"].round(2).values,
+    "ICB Vale": icbp["Vale"].reindex(custo.index).round(1).values,
+}).iloc[::-1].reset_index(drop=True)  # mais recente no topo
+
+valep = df[df.cidade == "Vale"].pivot_table(index="data", columns="produto", values="custo").sort_index()
+cur, prev, y12 = valep.iloc[-1], valep.iloc[-2], valep.iloc[-13]
+prod_df = pd.DataFrame({
+    "produto": PRODS,
+    "peso": [cur[p] / cur["Total"] * 100 for p in PRODS],
+    "var_mes": [(cur[p] / prev[p] - 1) * 100 for p in PRODS],
+    "var12": [(cur[p] / y12[p] - 1) * 100 for p in PRODS],
+}).sort_values("peso", ascending=False)
+
+mes = pd.read_csv(ROOT / "base" / "cesta_mes.csv", sep=";")
+mes["prod"] = mes["produto"].map(canonico)
+amp = mes.pivot_table(index="prod", columns="cidade", values="amplitude").reindex(PRODS)
+
+# ---------- tabela comparativa ----------
+m, ma = f"{MES_NOME[MES]}/{ANO}", f"{MES_NOME[MES]}/{ANO-1}"
+comp = pd.DataFrame({
+    m: [brl(pnz["cesta"]), brl(jua["cesta"]), brl(vale["cesta"])],
+    ma: [brl(pnz["cesta_ano_anterior"]), brl(jua["cesta_ano_anterior"]), brl(vale["cesta_ano_anterior"])],
+    "Inflação mês": [pc(pnz["inflacao_mes"]), pc(jua["inflacao_mes"]), pc(vale["inflacao_mes"])],
+    "Acum. 12m": [pc(pnz["acum12"]), pc(jua["acum12"]), pc(vale["acum12"])],
+}, index=["Petrolina/PE", "Juazeiro/BA", "Vale (Média)"])
+
+# ---------- gráficos ----------
+def linhas(serie, ytitle):
+    fig = go.Figure()
+    for cid in ["Vale", "Petrolina", "Juazeiro"]:
+        fig.add_trace(go.Scatter(x=serie.index, y=serie[cid], name=cid,
+                                 line=dict(color=CORES[cid], width=2.6 if cid == "Vale" else 1.2)))
+    fig.add_vrect(x0="2020-03-01", x1="2020-07-31", fillcolor="grey", opacity=0.15, line_width=0)
+    style(fig, yaxis_title=ytitle)
+    leg_manual(fig, [(c, CORES[c]) for c in ["Vale", "Petrolina", "Juazeiro"]])
+    return fig
+
+fig_icb = linhas(icbp, "Índice")
+fig_custo = linhas(custo, "R$")
+
+fig_infl = make_subplots(specs=[[{"secondary_y": True}]])
+fig_infl.add_trace(go.Bar(x=infl_mes.index, y=infl_mes["Vale"], name="Inflação no mês",
+                          marker_color="#9ecae1"), secondary_y=False)
+fig_infl.add_trace(go.Scatter(x=acum12.index, y=acum12["Vale"], name="Acumulado 12 meses",
+                              line=dict(color="#0b3d91", width=2)), secondary_y=True)
+fig_infl.update_yaxes(title_text="Mês (%)", secondary_y=False)
+fig_infl.update_yaxes(title_text="12 meses (%)", secondary_y=True)
+style(fig_infl)
+leg_manual(fig_infl, [("Inflação no mês", "#6baed6"), ("Acumulado 12 meses", "#0b3d91")])
+
+def barh(d, col, ytitle, divergente=True):
+    cor = ["#2ca02c" if v < 0 else "#d62728" for v in d[col]] if divergente else "#0b3d91"
+    fig = go.Figure(go.Bar(x=d[col], y=d["produto"], orientation="h", marker_color=cor,
+                           text=[pc(v) for v in d[col]], textposition="auto"))
+    return style(fig, leg=False, xaxis_title=ytitle)
+
+fig_altas = barh(prod_df.sort_values("var_mes"), "var_mes", "Variação no mês (%)")
+fig_peso = barh(prod_df.sort_values("peso"), "peso", "% do custo total", divergente=False)
+fig_var12 = barh(prod_df.sort_values("var12"), "var12", "Variação 12 meses (%)")
+
+fig_disp = go.Figure()
+for cid in ["Petrolina", "Juazeiro"]:
+    fig_disp.add_trace(go.Bar(name=cid, x=amp.index, y=amp[cid], marker_color=CORES[cid]))
+style(fig_disp, barmode="group", yaxis_title="Amplitude (%)")
+leg_manual(fig_disp, [("Petrolina", CORES["Petrolina"]), ("Juazeiro", CORES["Juazeiro"])])
+```
+
+# Visão Geral
+
+## Row {height="135px"}
+
+```{python}
+#| content: valuebox
+#| title: "Custo da cesta — Vale"
+dict(icon="cart4", color="primary", value=brl(vale["cesta"]))
+```
+
+```{python}
+#| content: valuebox
+#| title: "Inflação no mês"
+dict(icon="arrow-up-right" if vale["inflacao_mes"] >= 0 else "arrow-down-right",
+     color="danger" if vale["inflacao_mes"] >= 0 else "success", value=pc(vale["inflacao_mes"]))
+```
+
+```{python}
+#| content: valuebox
+#| title: "Acumulado 12 meses"
+dict(icon="calendar3", color="warning", value=pc(vale["acum12"]))
+```
+
+```{python}
+#| content: valuebox
+#| title: "ICB (base média 2014=100)"
+dict(icon="graph-up", color="info", value=f"{icb_vale_atual:.1f}".replace(".", ","))
+```
+
+## Row {height="290px"}
+
+### Column {width="42%"}
+
+```{python}
+#| title: "Custo da cesta por cidade (R$)"
+comp
+```
+
+### Column {width="58%"}
+
+```{python}
+#| title: "Maiores altas e quedas no mês (Vale)"
+fig_altas
+```
+
+## Row {height="430px"}
+
+```{python}
+#| title: "ICB — Índice de Custo da Cesta Básica (base: média de 2014 = 100)"
+fig_icb
+```
+
+# Histórico
+
+## Row {height="450px"}
+
+```{python}
+#| title: "Inflação mensal e acumulada em 12 meses — Vale"
+fig_infl
+```
+
+## Row {height="450px"}
+
+```{python}
+#| title: "Custo da cesta (R$) — Vale, Petrolina e Juazeiro (série mensal desde ago/2013)"
+fig_custo
+```
+
+## Row {height="500px"}
+
+```{python}
+#| title: "Tabela da série histórica — valores mensais (exportável: copiar / CSV / Excel)"
+show(tab_hist,
+     buttons=["copyHtml5", "csvHtml5", "excelHtml5"],
+     classes="display compact",
+     style="width:100%",
+     paging=True, lengthMenu=[10, 25, 50, 100], maxBytes=0,
+     order=[],
+     columnDefs=[{"targets": 0, "className": "dt-left"},
+                 {"targets": [1, 2, 3, 4, 5, 6], "className": "dt-right"}])
+```
+
+# Produtos
+
+## Row {height="450px"}
+
+### Column
+
+```{python}
+#| title: "Peso de cada produto na cesta (%) — Vale"
+fig_peso
+```
+
+### Column
+
+```{python}
+#| title: "Variação acumulada em 12 meses por produto (Vale)"
+fig_var12
+```
+
+## Row {height="430px"}
+
+```{python}
+#| title: "Dispersão de preços (amplitude máx/mín, %) por produto"
+fig_disp
+```

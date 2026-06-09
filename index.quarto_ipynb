@@ -1,0 +1,399 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "title: \"Observatório do Custo da Cesta Básica\"\n",
+        "author: \"Colegiado de Economia da FACAPE\"\n",
+        "format:\n",
+        "  dashboard:\n",
+        "    theme: [flatly, custom.scss]\n",
+        "    scrolling: true\n",
+        "    logo: ../boletim/assets/logofacape.jpg\n",
+        "    nav-buttons:\n",
+        "      - icon: file-pdf\n",
+        "        href: ../boletim/abril.pdf\n",
+        "execute:\n",
+        "  echo: false\n",
+        "  warning: false\n",
+        "  message: false\n",
+        "---"
+      ],
+      "id": "8d8f8dd9"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "#| label: setup\n",
+        "#| output: false\n",
+        "import sys\n",
+        "from pathlib import Path\n",
+        "sys.path.append(str(Path(\"../src\").resolve()))\n",
+        "from metricas import resumo_boletim, canonico, ROOT, MES_NOME\n",
+        "import pandas as pd\n",
+        "import plotly.graph_objects as go\n",
+        "from plotly.subplots import make_subplots\n",
+        "\n",
+        "ANO, MES = 2026, 4\n",
+        "R = resumo_boletim(ANO, MES, \"dados/abril\")\n",
+        "vale, pnz, jua = R[\"vale\"], R[\"cidades\"][\"Petrolina\"], R[\"cidades\"][\"Juazeiro\"]\n",
+        "\n",
+        "CORES = {\"Vale\": \"#0b3d91\", \"Petrolina\": \"#1f77b4\", \"Juazeiro\": \"#2ca02c\"}\n",
+        "PRODS = [\"Carne\", \"Leite Integral\", \"Feijão\", \"Arroz\", \"Farinha\", \"Tomate\",\n",
+        "         \"Pão Francês\", \"Café em Pó\", \"Banana\", \"Açúcar\", \"Óleo de Soja\", \"Margarina\"]\n",
+        "\n",
+        "def brl(x):\n",
+        "    return (\"R$ \" + f\"{x:,.2f}\").replace(\",\", \"X\").replace(\".\", \",\").replace(\"X\", \".\")\n",
+        "def pc(x):\n",
+        "    return f\"{x:.2f}\".replace(\".\", \",\") + \"%\"\n",
+        "def style(fig, leg=True, **kw):\n",
+        "    fig.update_layout(margin=dict(l=8, r=8, t=14, b=8), template=\"plotly_white\",\n",
+        "                      showlegend=leg, font=dict(size=11),\n",
+        "                      legend=dict(orientation=\"v\", yanchor=\"top\", y=0.99, x=0.01, xanchor=\"left\",\n",
+        "                                  font=dict(size=10), bgcolor=\"rgba(255,255,255,0.65)\",\n",
+        "                                  bordercolor=\"rgba(0,0,0,0.12)\", borderwidth=1), **kw)\n",
+        "    return fig\n",
+        "\n",
+        "# ---------- dados ----------\n",
+        "df = pd.read_csv(ROOT / \"base\" / \"cesta_serie_longa.csv\", sep=\";\")\n",
+        "df[\"data\"] = pd.to_datetime(dict(year=df.ano, month=df.mes, day=1))\n",
+        "tot = df[df.produto == \"Total\"]\n",
+        "custo = tot.pivot_table(index=\"data\", columns=\"cidade\", values=\"custo\").sort_index()\n",
+        "infl_mes = custo.pct_change() * 100\n",
+        "acum12 = (custo / custo.shift(12) - 1) * 100\n",
+        "\n",
+        "icb = pd.read_csv(ROOT / \"base\" / \"icb.csv\", sep=\";\")\n",
+        "icb[\"data\"] = pd.to_datetime(dict(year=icb.ano, month=icb.mes, day=1))\n",
+        "icbp = icb.pivot_table(index=\"data\", columns=\"cidade\", values=\"icb\").sort_index()\n",
+        "icb_vale_atual = icbp[\"Vale\"].iloc[-1]\n",
+        "\n",
+        "valep = df[df.cidade == \"Vale\"].pivot_table(index=\"data\", columns=\"produto\", values=\"custo\").sort_index()\n",
+        "cur, prev, y12 = valep.iloc[-1], valep.iloc[-2], valep.iloc[-13]\n",
+        "prod_df = pd.DataFrame({\n",
+        "    \"produto\": PRODS,\n",
+        "    \"peso\": [cur[p] / cur[\"Total\"] * 100 for p in PRODS],\n",
+        "    \"var_mes\": [(cur[p] / prev[p] - 1) * 100 for p in PRODS],\n",
+        "    \"var12\": [(cur[p] / y12[p] - 1) * 100 for p in PRODS],\n",
+        "}).sort_values(\"peso\", ascending=False)\n",
+        "\n",
+        "mes = pd.read_csv(ROOT / \"base\" / \"cesta_mes.csv\", sep=\";\")\n",
+        "mes[\"prod\"] = mes[\"produto\"].map(canonico)\n",
+        "amp = mes.pivot_table(index=\"prod\", columns=\"cidade\", values=\"amplitude\").reindex(PRODS)\n",
+        "\n",
+        "# ---------- tabela comparativa ----------\n",
+        "m, ma = f\"{MES_NOME[MES]}/{ANO}\", f\"{MES_NOME[MES]}/{ANO-1}\"\n",
+        "comp = pd.DataFrame({\n",
+        "    m: [brl(pnz[\"cesta\"]), brl(jua[\"cesta\"]), brl(vale[\"cesta\"])],\n",
+        "    ma: [brl(pnz[\"cesta_ano_anterior\"]), brl(jua[\"cesta_ano_anterior\"]), \"—\"],\n",
+        "    \"Inflação mês\": [pc(pnz[\"inflacao_mes\"]), pc(jua[\"inflacao_mes\"]), pc(vale[\"inflacao_mes\"])],\n",
+        "    \"Acum. 12m\": [pc(pnz[\"acum12\"]), pc(jua[\"acum12\"]), pc(vale[\"acum12\"])],\n",
+        "}, index=[\"Petrolina/PE\", \"Juazeiro/BA\", \"Vale (Média)\"])\n",
+        "\n",
+        "# ---------- gráficos ----------\n",
+        "def linhas(serie, ytitle):\n",
+        "    fig = go.Figure()\n",
+        "    for cid in [\"Vale\", \"Petrolina\", \"Juazeiro\"]:\n",
+        "        fig.add_trace(go.Scatter(x=serie.index, y=serie[cid], name=cid,\n",
+        "                                 line=dict(color=CORES[cid], width=2.6 if cid == \"Vale\" else 1.2)))\n",
+        "    fig.add_vrect(x0=\"2020-03-01\", x1=\"2020-07-31\", fillcolor=\"grey\", opacity=0.15, line_width=0)\n",
+        "    return style(fig, yaxis_title=ytitle)\n",
+        "\n",
+        "fig_icb = linhas(icbp, \"Índice\")\n",
+        "fig_custo = linhas(custo, \"R$\")\n",
+        "\n",
+        "fig_infl = make_subplots(specs=[[{\"secondary_y\": True}]])\n",
+        "fig_infl.add_trace(go.Bar(x=infl_mes.index, y=infl_mes[\"Vale\"], name=\"Inflação no mês\",\n",
+        "                          marker_color=\"#9ecae1\"), secondary_y=False)\n",
+        "fig_infl.add_trace(go.Scatter(x=acum12.index, y=acum12[\"Vale\"], name=\"Acumulado 12 meses\",\n",
+        "                              line=dict(color=\"#0b3d91\", width=2)), secondary_y=True)\n",
+        "fig_infl.update_yaxes(title_text=\"Mês (%)\", secondary_y=False)\n",
+        "fig_infl.update_yaxes(title_text=\"12 meses (%)\", secondary_y=True)\n",
+        "style(fig_infl)\n",
+        "\n",
+        "def barh(d, col, ytitle, divergente=True):\n",
+        "    cor = [\"#2ca02c\" if v < 0 else \"#d62728\" for v in d[col]] if divergente else \"#0b3d91\"\n",
+        "    fig = go.Figure(go.Bar(x=d[col], y=d[\"produto\"], orientation=\"h\", marker_color=cor,\n",
+        "                           text=[pc(v) for v in d[col]], textposition=\"auto\"))\n",
+        "    return style(fig, leg=False, xaxis_title=ytitle)\n",
+        "\n",
+        "fig_altas = barh(prod_df.sort_values(\"var_mes\"), \"var_mes\", \"Variação no mês (%)\")\n",
+        "fig_peso = barh(prod_df.sort_values(\"peso\"), \"peso\", \"% do custo total\", divergente=False)\n",
+        "fig_var12 = barh(prod_df.sort_values(\"var12\"), \"var12\", \"Variação 12 meses (%)\")\n",
+        "\n",
+        "fig_disp = go.Figure()\n",
+        "for cid in [\"Petrolina\", \"Juazeiro\"]:\n",
+        "    fig_disp.add_trace(go.Bar(name=cid, x=amp.index, y=amp[cid], marker_color=CORES[cid]))\n",
+        "style(fig_disp, barmode=\"group\", yaxis_title=\"Amplitude (%)\")"
+      ],
+      "id": "setup",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "# Visão Geral\n",
+        "\n",
+        "## Row {height=\"135px\"}"
+      ],
+      "id": "79816b58"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "content": "valuebox",
+        "title": "Custo da cesta — Vale"
+      },
+      "source": [
+        "dict(icon=\"cart4\", color=\"primary\", value=brl(vale[\"cesta\"]))"
+      ],
+      "id": "59be2f95",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "content": "valuebox",
+        "title": "Inflação no mês"
+      },
+      "source": [
+        "dict(icon=\"arrow-up-right\" if vale[\"inflacao_mes\"] >= 0 else \"arrow-down-right\",\n",
+        "     color=\"danger\" if vale[\"inflacao_mes\"] >= 0 else \"success\", value=pc(vale[\"inflacao_mes\"]))"
+      ],
+      "id": "763642dd",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "content": "valuebox",
+        "title": "Acumulado 12 meses"
+      },
+      "source": [
+        "dict(icon=\"calendar3\", color=\"warning\", value=pc(vale[\"acum12\"]))"
+      ],
+      "id": "b5c49906",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "content": "valuebox",
+        "title": "ICB (base média 2014=100)"
+      },
+      "source": [
+        "dict(icon=\"graph-up\", color=\"info\", value=f\"{icb_vale_atual:.1f}\".replace(\".\", \",\"))"
+      ],
+      "id": "9d008f34",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Row {height=\"290px\"}\n",
+        "\n",
+        "### Column {width=\"42%\"}"
+      ],
+      "id": "1069b402"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Custo da cesta por cidade (R$)"
+      },
+      "source": [
+        "comp"
+      ],
+      "id": "4882a556",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### Column {width=\"58%\"}"
+      ],
+      "id": "545a8eb3"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Maiores altas e quedas no mês (Vale)"
+      },
+      "source": [
+        "fig_altas"
+      ],
+      "id": "7d493a4d",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Row {height=\"430px\"}\n",
+        "\n",
+        "### Column"
+      ],
+      "id": "e856bd73"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "ICB — Índice de Custo da Cesta Básica (base: média de 2014 = 100)"
+      },
+      "source": [
+        "fig_icb"
+      ],
+      "id": "fe7df60b",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### Column"
+      ],
+      "id": "7e54a135"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Custo da cesta (R$) ao longo do tempo"
+      },
+      "source": [
+        "fig_custo"
+      ],
+      "id": "a457f688",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "# Histórico\n",
+        "\n",
+        "## Row {height=\"450px\"}"
+      ],
+      "id": "1b3d260d"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Inflação mensal e acumulada em 12 meses — Vale"
+      },
+      "source": [
+        "fig_infl"
+      ],
+      "id": "393f9b2e",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Row {height=\"450px\"}"
+      ],
+      "id": "7b2ab544"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Custo da cesta (R$) — Vale, Petrolina e Juazeiro (ago/2013 → abr/2026)"
+      },
+      "source": [
+        "fig_custo"
+      ],
+      "id": "fda436be",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "# Produtos\n",
+        "\n",
+        "## Row {height=\"450px\"}\n",
+        "\n",
+        "### Column"
+      ],
+      "id": "75b250ed"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Peso de cada produto na cesta (%) — Vale"
+      },
+      "source": [
+        "fig_peso"
+      ],
+      "id": "69deccbe",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### Column"
+      ],
+      "id": "eb37d88c"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Variação acumulada em 12 meses por produto (Vale)"
+      },
+      "source": [
+        "fig_var12"
+      ],
+      "id": "6ea6eae4",
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Row {height=\"430px\"}"
+      ],
+      "id": "4064ac2c"
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "title": "Dispersão de preços (amplitude máx/mín, %) por produto"
+      },
+      "source": [
+        "fig_disp"
+      ],
+      "id": "505209db",
+      "execution_count": null,
+      "outputs": []
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "name": "python314",
+      "language": "python",
+      "display_name": "Python 3.14 (Quarto/RStudio)",
+      "path": "C:\\Users\\Lenovo\\AppData\\Roaming\\jupyter\\kernels\\python314"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}

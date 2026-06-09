@@ -1,0 +1,38 @@
+/*-- scss:defaults --*/
+$navy: #0b3d91;
+
+// Barra de navegação branca com texto azul navy (combina com o logo FACAPE)
+$navbar-bg: #ffffff;
+$navbar-fg: $navy;
+$navbar-hl: $navy;
+
+/*-- scss:rules --*/
+.quarto-dashboard .navbar {
+  background-color: #ffffff !important;
+  border-bottom: 2px solid #{$navy};
+}
+.quarto-dashboard .navbar .navbar-brand,
+.quarto-dashboard .navbar .navbar-title,
+.quarto-dashboard .navbar .navbar-text,
+.quarto-dashboard .navbar .nav-link {
+  color: #{$navy} !important;
+}
+.quarto-dashboard .navbar .nav-link.active {
+  color: #{$navy} !important;
+  font-weight: 700;
+  border-bottom: 3px solid #{$navy};
+}
+
+// Value boxes mais compactos (evita corte do "R$ 649,48")
+.quarto-dashboard .value-box-value {
+  font-size: 0.8rem;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+.quarto-dashboard .value-box-title { font-size: 0.88rem; }
+.quarto-dashboard .value-box-showcase {
+  font-size: 1.5rem;
+  padding-right: 0.1rem;
+  flex: 0 0 auto;
+}
+.quarto-dashboard .value-box-area { padding: 0.4rem 0.6rem; }
