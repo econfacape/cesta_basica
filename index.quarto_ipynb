@@ -4,24 +4,24 @@
       "cell_type": "markdown",
       "metadata": {},
       "source": [
-        "---\n",
+        "﻿---\n",
         "title: \"Observatório do Custo da Cesta Básica\"\n",
         "author: \"Colegiado de Economia da FACAPE\"\n",
         "format:\n",
         "  dashboard:\n",
         "    theme: [flatly, custom.scss]\n",
         "    scrolling: true\n",
-        "    logo: ../boletim/assets/logofacape.jpg\n",
+        "    logo: logofacape.jpg\n",
         "    nav-buttons:\n",
         "      - icon: file-pdf\n",
-        "        href: ../boletim/abril.pdf\n",
+        "        href: maio.pdf\n",
         "execute:\n",
         "  echo: false\n",
         "  warning: false\n",
         "  message: false\n",
         "---"
       ],
-      "id": "fd7048d5"
+      "id": "2d74d37a"
     },
     {
       "cell_type": "code",
@@ -39,7 +39,7 @@
         "from itables import show, init_notebook_mode\n",
         "init_notebook_mode(all_interactive=False, connected=True)\n",
         "\n",
-        "ANO, MES = 2026, 4\n",
+        "ANO, MES = 2026, 5\n",
         "PASTA = f\"dados/{MES_NOME[MES].lower()}\"   # ex.: dados/maio (deriva do número do mês)\n",
         "R = resumo_boletim(ANO, MES, PASTA)\n",
         "vale, pnz, jua = R[\"vale\"], R[\"cidades\"][\"Petrolina\"], R[\"cidades\"][\"Juazeiro\"]\n",
@@ -164,7 +164,7 @@
         "\n",
         "## Row {height=\"135px\"}"
       ],
-      "id": "d0b5df39"
+      "id": "862da242"
     },
     {
       "cell_type": "code",
@@ -175,7 +175,7 @@
       "source": [
         "dict(icon=\"cart4\", color=\"primary\", value=brl(vale[\"cesta\"]))"
       ],
-      "id": "b61f6d69",
+      "id": "c14ee066",
       "execution_count": null,
       "outputs": []
     },
@@ -189,7 +189,7 @@
         "dict(icon=\"arrow-up-right\" if vale[\"inflacao_mes\"] >= 0 else \"arrow-down-right\",\n",
         "     color=\"danger\" if vale[\"inflacao_mes\"] >= 0 else \"success\", value=pc(vale[\"inflacao_mes\"]))"
       ],
-      "id": "44083183",
+      "id": "3ba03a53",
       "execution_count": null,
       "outputs": []
     },
@@ -202,7 +202,7 @@
       "source": [
         "dict(icon=\"calendar3\", color=\"warning\", value=pc(vale[\"acum12\"]))"
       ],
-      "id": "5f24109d",
+      "id": "879ac4cd",
       "execution_count": null,
       "outputs": []
     },
@@ -215,7 +215,7 @@
       "source": [
         "dict(icon=\"graph-up\", color=\"info\", value=f\"{icb_vale_atual:.1f}\".replace(\".\", \",\"))"
       ],
-      "id": "c8ca3248",
+      "id": "231554c9",
       "execution_count": null,
       "outputs": []
     },
@@ -227,7 +227,7 @@
         "\n",
         "### Column {width=\"42%\"}"
       ],
-      "id": "0e53bbe8"
+      "id": "ae449118"
     },
     {
       "cell_type": "code",
@@ -237,7 +237,7 @@
       "source": [
         "comp"
       ],
-      "id": "c44b250e",
+      "id": "d5e37a92",
       "execution_count": null,
       "outputs": []
     },
@@ -247,7 +247,7 @@
       "source": [
         "### Column {width=\"58%\"}"
       ],
-      "id": "0a184016"
+      "id": "ad36758e"
     },
     {
       "cell_type": "code",
@@ -257,7 +257,7 @@
       "source": [
         "fig_altas"
       ],
-      "id": "20106dd6",
+      "id": "533c0c05",
       "execution_count": null,
       "outputs": []
     },
@@ -267,7 +267,7 @@
       "source": [
         "## Row {height=\"430px\"}"
       ],
-      "id": "81ebe02c"
+      "id": "4306d9a2"
     },
     {
       "cell_type": "code",
@@ -277,7 +277,7 @@
       "source": [
         "fig_icb"
       ],
-      "id": "56f67273",
+      "id": "d82d5d65",
       "execution_count": null,
       "outputs": []
     },
@@ -289,7 +289,7 @@
         "\n",
         "## Row {height=\"450px\"}"
       ],
-      "id": "bf727791"
+      "id": "78c68282"
     },
     {
       "cell_type": "code",
@@ -299,7 +299,7 @@
       "source": [
         "fig_infl"
       ],
-      "id": "cfabd820",
+      "id": "6013c260",
       "execution_count": null,
       "outputs": []
     },
@@ -309,7 +309,7 @@
       "source": [
         "## Row {height=\"450px\"}"
       ],
-      "id": "c0b49791"
+      "id": "8b8ac561"
     },
     {
       "cell_type": "code",
@@ -319,7 +319,7 @@
       "source": [
         "fig_custo"
       ],
-      "id": "1b1612d2",
+      "id": "d3f27e85",
       "execution_count": null,
       "outputs": []
     },
@@ -329,7 +329,7 @@
       "source": [
         "## Row {height=\"500px\"}"
       ],
-      "id": "6aa86694"
+      "id": "4895fcdc"
     },
     {
       "cell_type": "code",
@@ -346,7 +346,7 @@
         "     columnDefs=[{\"targets\": 0, \"className\": \"dt-left\"},\n",
         "                 {\"targets\": [1, 2, 3, 4, 5, 6], \"className\": \"dt-right\"}])"
       ],
-      "id": "5e8b5a67",
+      "id": "d15dc69c",
       "execution_count": null,
       "outputs": []
     },
@@ -360,7 +360,7 @@
         "\n",
         "### Column"
       ],
-      "id": "d2ea0211"
+      "id": "c0f2baf1"
     },
     {
       "cell_type": "code",
@@ -370,7 +370,7 @@
       "source": [
         "fig_peso"
       ],
-      "id": "5138826a",
+      "id": "84bdd53c",
       "execution_count": null,
       "outputs": []
     },
@@ -380,7 +380,7 @@
       "source": [
         "### Column"
       ],
-      "id": "02738b45"
+      "id": "783e8293"
     },
     {
       "cell_type": "code",
@@ -390,7 +390,7 @@
       "source": [
         "fig_var12"
       ],
-      "id": "36a5a3ce",
+      "id": "91e44f5f",
       "execution_count": null,
       "outputs": []
     },
@@ -400,7 +400,7 @@
       "source": [
         "## Row {height=\"430px\"}"
       ],
-      "id": "486646fe"
+      "id": "e28039a1"
     },
     {
       "cell_type": "code",
@@ -410,7 +410,7 @@
       "source": [
         "fig_disp"
       ],
-      "id": "0edd57e5",
+      "id": "83c8438b",
       "execution_count": null,
       "outputs": []
     }
