@@ -1,6 +1,7 @@
 ---
 title: "Custo da Cesta Básica"
 author: "Colegiado de Economia da FACAPE"
+jupyter: python314
 format:
   dashboard:
     theme: [flatly, custom.scss]
@@ -8,7 +9,7 @@ format:
     logo: logofacape.jpg
     nav-buttons:
       - icon: file-pdf
-        href: maio.pdf
+        href: junho.pdf
 execute:
   echo: false
   warning: false
@@ -28,7 +29,7 @@ from plotly.subplots import make_subplots
 from itables import show, init_notebook_mode
 init_notebook_mode(all_interactive=False, connected=True)
 
-ANO, MES = 2026, 5
+ANO, MES = 2026, 6
 PASTA = f"dados/{MES_NOME[MES].lower()}"   # ex.: dados/maio (deriva do número do mês)
 R = resumo_boletim(ANO, MES, PASTA)
 vale, pnz, jua = R["vale"], R["cidades"]["Petrolina"], R["cidades"]["Juazeiro"]
